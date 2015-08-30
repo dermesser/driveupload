@@ -58,7 +58,7 @@ func getProgressFunction(filename string) func(done, max int64) {
 			n_filled = 0
 		}
 
-		n_empty := bar_width - n_filled + len(sizestr)
+		n_empty := bar_width - n_filled - len(sizestr)
 
 		filled := strings.Repeat("=", n_filled) + sizestr
 		empty := strings.Repeat(" ", n_empty)
