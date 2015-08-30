@@ -5,12 +5,10 @@ import (
 	"log"
 )
 
-var FLAG_upload_filename string
 var FLAG_folder_id string
 var FLAG_recursive bool
 
 func registerFlags() {
-	flag.StringVar(&FLAG_upload_filename, "upload_filename", "", "Under which name to upload the file")
 	flag.StringVar(&FLAG_folder_id, "folder", "root", "A folder ID (can be taken from the Drive Web URL) of the folder to put files in")
 	flag.BoolVar(&FLAG_recursive, "r", false, "Upload recursively")
 }
