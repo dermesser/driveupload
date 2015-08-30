@@ -5,6 +5,6 @@ Usage of ./driveupload:
   -r=false: Upload recursively - you can specify a directory as filename when
   using this, the structure below it will be mirrored in Drive.
 
-The tool asks for OAuth authorization when being used for the first time. It stores
-the OAuth token in $HOME/.cache/drive\_client/.
+The tool asks for OAuth authorization when being used for the first time.
+It stores the OAuth token in $HOME/.cache/drive_client/.
 
