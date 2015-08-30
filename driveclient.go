@@ -54,7 +54,7 @@ func createNewToken(cfg *oauth2.Config) (*oauth2.Token, error) {
 	fmt.Println("Please paste the token obtained from", url, "here:")
 
 	var code string
-	_, err := fmt.Scan("%s", &code)
+	_, err := fmt.Scan(&code)
 	if err != nil {
 		return nil, err
 	}
