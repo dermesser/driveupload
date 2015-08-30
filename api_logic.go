@@ -62,11 +62,13 @@ func getProgressFunction(filename string) func(done, max int64) {
 		filled := strings.Repeat("=", n_filled) + sizestr
 		empty := strings.Repeat(" ", n_empty)
 
+		short_filename := filename
+
 		if len(filename) > 30 {
-			filename = "..." + filename[len(filename)-27:len(filename)]
+			short_filename = "..." + filename[len(filename)-27:len(filename)]
 		}
 
-		bar := fmt.Sprintf("%30s [%s%s]", filename, filled, empty)
+		bar := fmt.Sprintf("%30s [%s%s]", short_filename, filled, empty)
 
 		fmt.Print(clearline)
 		fmt.Print(bar)
