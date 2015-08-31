@@ -11,8 +11,7 @@ import (
 var FLAG_folder_id string
 
 // May chdir() into another directory; returns name of directory to start uploading
-func getStartDir() string {
-	path := flag.Arg(0)
+func getStartDir(path string) string {
 	dir, file := filepath.Split(path)
 	filename := ""
 
@@ -85,14 +84,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var filelist []string
-	filename := getStartDir()
+	orig_dir, err := os.Getwd()
 
-	filelist = getFileList(filename)
+	for _, path := range flag.Args() {
+		var filelist []string
 
-	err = uploadFileList(driveclient, filelist)
+		filename := getStartDir(path)
 
-	if err != nil {
-		log.Fatal(err)
+		filelist = getFileList(filename)
+
+		err = uploadFileList(driveclient, filelist)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		os.Chdir(orig_dir)
 	}
 }

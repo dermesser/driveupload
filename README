@@ -5,7 +5,7 @@ Usage of ./driveupload:
 
 Call it like
 
-  $ driveupload -folder=aabbccddeeAABBCCDDEEFFGG folderA
+  $ driveupload -folder=aabbccddeeAABBCCDDEEFFGG folderA folderB/
 
 The tool asks for OAuth authorization when being used for the first time.
 It stores the OAuth token in $HOME/.cache/drive_client/.
