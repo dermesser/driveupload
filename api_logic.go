@@ -5,7 +5,6 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/context"
 	"google.golang.org/api/drive/v2"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -167,36 +166,4 @@ func createNestedFolders(cl *drive.Service, pathtoid map[string]string, root str
 	}
 
 	return nil
-}
-
-func getFileList(local_folder string) []string {
-	list := make([]string, 0, 16)
-
-	st, err := os.Stat(local_folder)
-
-	if err != nil {
-		log.Fatal(err)
-		return list
-	}
-
-	if !st.IsDir() {
-		return append(list, local_folder)
-	}
-
-	files, err := ioutil.ReadDir(local_folder)
-
-	if err != nil {
-		log.Fatal(err)
-		return list
-	}
-
-	for _, f := range files {
-		if f.IsDir() {
-			list = append(list, getFileList(filepath.Join(local_folder, f.Name()))...)
-		} else {
-			list = append(list, filepath.Join(local_folder, f.Name()))
-		}
-	}
-
-	return list
 }

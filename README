@@ -2,9 +2,18 @@ Usage of ./driveupload:
   -folder="root": A folder ID (can be taken from the Drive Web URL) of the
   folder to put files in (IDs look like
   0B8uq706gy2v7fjdQRl9OSVpKVFhzWEhNZmFpNmwwS2N6BGhzuFpKa1ZZc0l6OVo2N2EwVG4)
-  -r=false: Upload recursively - you can specify a directory as filename when
-  using this, the structure below it will be mirrored in Drive.
+
+Call it like
+
+  $ driveupload -folder=aabbccddeeAABBCCDDEEFFGG folderA
 
 The tool asks for OAuth authorization when being used for the first time.
 It stores the OAuth token in $HOME/.cache/drive_client/.
 
+Path specs:
+  - if the path is a file, it will be uploaded in the specified folder.
+  - if the path is a folder and doesn't have a trailing slash, it will be
+    created in Drive under the specified folder, and the contents will be
+    uploaded.
+  - if the path is a folder and contains a trailing slash, the folders
+    below it will be created, and all content in the folder will be uploaded.
