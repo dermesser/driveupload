@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"google.golang.org/api/drive/v2"
 	"io"
 	"log"
@@ -27,15 +28,19 @@ func getIdList(cl *drive.Service, basedir string, root string, is_id bool) []get
 			log.Println(err)
 		}
 
-		for _, f := range fl.Items {
+		for i, f := range fl.Items {
 			if f.MimeType != "application/vnd.google-apps.folder" {
-				idlist = append(idlist, getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize})
+				if i > 0 {
+					idlist = append(idlist, getFile{directory: basedir, id: f.Id, name: fmt.Sprintf("%d_%s", i, f.Title), size: f.FileSize})
+				} else {
+					idlist = append(idlist, getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize})
+				}
 			} else {
 				idlist = append(idlist, getIdList(cl, basedir+f.Title+"/", f.Id, true)...)
 			}
 		}
 	} else {
-		clist, err := cl.Children.List(root).MaxResults(100).Do()
+		clist, err := cl.Children.List(root).MaxResults(1000).Do()
 
 		if err != nil {
 			log.Println(err)
