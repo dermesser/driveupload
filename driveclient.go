@@ -78,7 +78,7 @@ func createClient(cfg *oauth2.Config) (*http.Client, error) {
 
 func getDriveClient() (*drive.Service, error) {
 
-	config, err := google.ConfigFromJSON(client_secret, drive.DriveFileScope)
+	config, err := google.ConfigFromJSON(client_secret, drive.DriveScope)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 )
 
 var FLAG_folder_id string
+var FLAG_get bool
 
 // May chdir() into another directory; returns name of directory to start uploading
 func getStartDir(path string) string {
@@ -70,6 +72,7 @@ func getFileList(local_folder string) []string {
 }
 func registerFlags() {
 	flag.StringVar(&FLAG_folder_id, "folder", "root", "A folder ID (can be taken from the Drive Web URL) of the folder to put files in")
+	flag.BoolVar(&FLAG_get, "get", false, "Download files. Either the folder given by -folder or the file or folder given as name")
 }
 
 func main() {
@@ -84,21 +87,42 @@ func main() {
 		log.Fatal(err)
 	}
 
-	orig_dir, err := os.Getwd()
+	if !FLAG_get {
+		orig_dir, err := os.Getwd()
 
-	for _, path := range flag.Args() {
-		var filelist []string
+		for _, path := range flag.Args() {
+			var filelist []string
 
-		filename := getStartDir(path)
+			filename := getStartDir(path)
 
-		filelist = getFileList(filename)
+			filelist = getFileList(filename)
 
-		err = uploadFileList(driveclient, filelist)
+			err = uploadFileList(driveclient, filelist)
 
-		if err != nil {
-			log.Fatal(err)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			os.Chdir(orig_dir)
+		}
+	} else {
+		var ids []getFile
+
+		fmt.Println("Getting file list...")
+
+		if FLAG_folder_id != "root" {
+			ids = getIdList(driveclient, "", FLAG_folder_id, true)
+		} else {
+			ids = getIdList(driveclient, "", flag.Arg(0), false)
 		}
 
-		os.Chdir(orig_dir)
+		fmt.Println("Downloading", len(ids), "items...")
+
+		err := getFiles(driveclient, ids)
+
+		if err != nil {
+			log.Println(err)
+		}
+
 	}
 }
