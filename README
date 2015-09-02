@@ -2,6 +2,7 @@ Usage of ./driveupload:
   -folder="root": A folder ID (can be taken from the Drive Web URL) of the
   folder to put files in (IDs look like
   0B8uq706gy2v7fjdQRl9OSVpKVFhzWEhNZmFpNmwwS2N6BGhzuFpKa1ZZc0l6OVo2N2EwVG4)
+  -get=false: If given, puts driveupload into download mode.
 
 Call it like
 
@@ -10,10 +11,16 @@ Call it like
 The tool asks for OAuth authorization when being used for the first time.
 It stores the OAuth token in $HOME/.cache/drive_client/.
 
-Path specs:
+Path specs/upload:
   - if the path is a file, it will be uploaded in the specified folder.
   - if the path is a folder and doesn't have a trailing slash, it will be
     created in Drive under the specified folder, and the contents will be
     uploaded.
   - if the path is a folder and contains a trailing slash, the folders
     below it will be created, and all content in the folder will be uploaded.
+
+Path specs/download:
+  - if -folder is given, download the contents of the folder or file with the given ID.
+  - if a name is given, download all files and contents of folders with that name.
+    * If there are multiple files with the same name, they will be renamed to
+      a.txt, 1_a.txt, 2_a.txt etc.
