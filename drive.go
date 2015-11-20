@@ -7,10 +7,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 var FLAG_folder_id string
 var FLAG_get bool
+var FLAG_par int
+
+var DOWNLOAD_FINISHED bool
 
 // May chdir() into another directory; returns name of directory to start uploading
 func getStartDir(path string) string {
@@ -73,6 +77,7 @@ func getFileList(local_folder string) []string {
 func registerFlags() {
 	flag.StringVar(&FLAG_folder_id, "folder", "root", "A folder ID (can be taken from the Drive Web URL) of the folder to put files in")
 	flag.BoolVar(&FLAG_get, "get", false, "Download files. Either the folder given by -folder or the file or folder given as name")
+	flag.IntVar(&FLAG_par, "par", 4, "How many files to download in parallel")
 }
 
 func main() {
@@ -106,23 +111,25 @@ func main() {
 			os.Chdir(orig_dir)
 		}
 	} else {
-		var ids []getFile
+		// getIdList sends file metadata here, getFiles receives IDs and starts downloading
+		fileid_chan := make(chan getFile, 256)
 
 		fmt.Println("Getting file list...")
 
 		if FLAG_folder_id != "root" {
-			ids = getIdList(driveclient, "", FLAG_folder_id, true)
+			go getIdList(driveclient, "", FLAG_folder_id, true, fileid_chan)
 		} else {
-			ids = getIdList(driveclient, "", flag.Arg(0), false)
+			go getIdList(driveclient, "", flag.Arg(0), false, fileid_chan)
 		}
 
-		fmt.Println("Downloading", len(ids), "items...")
+		fmt.Println("Downloading items...")
 
-		err := getFiles(driveclient, ids)
+		wg := new(sync.WaitGroup)
 
-		if err != nil {
-			log.Println(err)
+		for i := 0; i < FLAG_par; i++ {
+			wg.Add(1)
+			go getFiles(driveclient, fileid_chan, wg)
 		}
-
+		wg.Wait()
 	}
 }

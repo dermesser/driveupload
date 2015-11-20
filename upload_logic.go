@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 var clearline string = fmt.Sprintf("%c[2K\r", 27)
@@ -75,9 +76,22 @@ func getProgressFunction(filename string) func(done, max int64) {
 	}
 }
 
+type fileToUpload struct {
+	id, filename string
+	finished     bool
+}
+
 func uploadFileList(cl *drive.Service, list []string) error {
 	pathtoidmap := make(map[string]string)
 	pathtoidmap["."] = FLAG_folder_id
+
+	wg := new(sync.WaitGroup)
+	filechan := make(chan fileToUpload, 256)
+
+	for i := 0; i < FLAG_par; i++ {
+		wg.Add(1)
+		go uploadFile(cl, filechan, wg)
+	}
 
 	for _, file := range list {
 		dir := filepath.Dir(file)
@@ -92,32 +106,56 @@ func uploadFileList(cl *drive.Service, list []string) error {
 			id = pathtoidmap[dir]
 		}
 
+		filechan <- fileToUpload{id: id, filename: file}
+	}
+
+	for i := 0; i < FLAG_par; i++ {
+		filechan <- fileToUpload{finished: true}
+	}
+
+	wg.Wait()
+	fmt.Println("")
+
+	return nil
+}
+
+func uploadFile(cl *drive.Service, filechan chan fileToUpload, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for f := range filechan {
+		if f.finished {
+			return
+		}
+		id, file := f.id, f.filename
+
 		parentref := &drive.ParentReference{Id: id}
 		drive_file := &drive.File{Title: filepath.Base(file), Parents: []*drive.ParentReference{parentref}}
 
 		data, err := os.Open(file)
+		defer data.Close()
 
 		if err != nil {
 			log.Print(err.Error())
-			continue
 		}
 
 		stat, err := data.Stat()
 
-		_, err = cl.Files.Insert(drive_file).
-			ResumableMedia(context.Background(), data, stat.Size(), "").
-			ProgressUpdater(getProgressFunction(file)).
-			Do()
+		fmt.Printf("...%s\n", file)
 
-		data.Close()
+		for {
+			_, err = cl.Files.Insert(drive_file).
+				ResumableMedia(context.Background(), data, stat.Size(), "").
+				Do()
 
-		if err != nil {
-			log.Print(err.Error())
+			if err != nil {
+				log.Print(err.Error())
+			} else {
+				break
+			}
+
 		}
+		fmt.Printf("Finished %s\n", file)
 	}
-	fmt.Println("")
-
-	return nil
 }
 
 func createNestedFolders(cl *drive.Service, pathtoid map[string]string, root string, folders []string) error {

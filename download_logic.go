@@ -6,9 +6,12 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 )
 
 type getFile struct {
+	finished bool
+
 	directory string
 	name      string
 	id        string
@@ -16,8 +19,18 @@ type getFile struct {
 }
 
 // Returns a list of IDs representing the files under the folder given. Returns only one id if it references a file.
-func getIdList(cl *drive.Service, basedir string, root string, is_id bool) []getFile {
-	idlist := make([]getFile, 0, 8)
+func getIdList(cl *drive.Service, basedir string, root string, is_id bool, idchan chan getFile) {
+	getIdListRecursive(cl, basedir, root, is_id, idchan)
+
+	// Send one "finished" message per downloader thread
+	for i := 0; i < FLAG_par; i++ {
+		idchan <- getFile{finished: true}
+	}
+
+	return
+}
+
+func getIdListRecursive(cl *drive.Service, basedir, root string, is_id bool, idchan chan getFile) {
 
 	if !is_id {
 		q := "title = '" + root + "'"
@@ -31,12 +44,12 @@ func getIdList(cl *drive.Service, basedir string, root string, is_id bool) []get
 		for i, f := range fl.Items {
 			if f.MimeType != "application/vnd.google-apps.folder" {
 				if i > 0 {
-					idlist = append(idlist, getFile{directory: basedir, id: f.Id, name: fmt.Sprintf("%d_%s", i, f.Title), size: f.FileSize})
+					idchan <- getFile{directory: basedir, id: f.Id, name: fmt.Sprintf("%d_%s", i, f.Title), size: f.FileSize}
 				} else {
-					idlist = append(idlist, getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize})
+					idchan <- getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize}
 				}
 			} else {
-				idlist = append(idlist, getIdList(cl, basedir+f.Title+"/", f.Id, true)...)
+				getIdListRecursive(cl, basedir+f.Title+"/", f.Id, true, idchan)
 			}
 		}
 	} else {
@@ -44,6 +57,7 @@ func getIdList(cl *drive.Service, basedir string, root string, is_id bool) []get
 
 		if err != nil {
 			log.Println(err)
+			return
 		}
 
 		if len(clist.Items) == 0 {
@@ -51,33 +65,36 @@ func getIdList(cl *drive.Service, basedir string, root string, is_id bool) []get
 
 			if err != nil {
 				log.Println(err)
-				return nil
+				return
 			}
-			idlist = append(idlist, getFile{id: root, directory: basedir, name: f.Title, size: f.FileSize})
+			idchan <- getFile{id: root, directory: basedir, name: f.Title, size: f.FileSize}
 		} else {
 			for _, child := range clist.Items {
 				f, err := cl.Files.Get(child.Id).Do()
 
 				if err != nil {
 					log.Println(err)
-					continue
+					return
 				}
 				if f.MimeType != "application/vnd.google-apps.folder" {
-					idlist = append(idlist, getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize})
+					idchan <- getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize}
 				} else {
-					idlist = append(idlist, getIdList(cl, basedir+f.Title+"/", f.Id, true)...)
+					getIdListRecursive(cl, basedir+f.Title+"/", f.Id, true, idchan)
 				}
 			}
 		}
 	}
-
-	return idlist
 }
 
-func getFiles(cl *drive.Service, idlist []getFile) error {
+func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error {
 	olddir, _ := os.Getwd()
+	defer wg.Done()
 
-	for _, file := range idlist {
+	for file := range idchan {
+		if file.finished {
+			return nil
+		}
+
 		if file.directory != "" {
 			os.MkdirAll(file.directory, 0755)
 			os.Chdir(file.directory)
@@ -89,29 +106,36 @@ func getFiles(cl *drive.Service, idlist []getFile) error {
 			log.Println(err)
 			continue
 		}
-		resp, err := cl.Files.Get(file.id).Download()
-
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		var i int64
-		progress_func := getProgressFunction(file.name)
 
 		for {
-			n, err := io.CopyN(f, resp.Body, file.size/100)
+			resp, err := cl.Files.Get(file.id).Download()
+
 			if err != nil {
+				log.Println(err)
+				continue
+			} else {
+				var i int64
+
+				fmt.Printf("...%s (%s)\n", file.name, sizeToString(file.size))
+
+				for {
+					n, err := io.CopyN(f, resp.Body, file.size/100)
+					if err != nil {
+						break
+					}
+					i += n
+				}
+
+				fmt.Printf("Finished %s\n", file.name)
+
+				f.Close()
+				resp.Body.Close()
+
+				os.Chdir(olddir)
 				break
 			}
-			i += n
-			progress_func(i, file.size)
 		}
 
-		f.Close()
-		resp.Body.Close()
-
-		os.Chdir(olddir)
 	}
 
 	return nil
