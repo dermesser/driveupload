@@ -35,7 +35,7 @@ func getStartDir(path string) string {
 		// e.g. abc/xyz
 		// chdir into directory and do it from there
 		filename = file
-		if err := os.Chdir(dir); err != nil {
+		if err := os.Chdir(path); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -93,8 +93,6 @@ func main() {
 	}
 
 	if !FLAG_get {
-		orig_dir, err := os.Getwd()
-
 		for _, path := range flag.Args() {
 			var filelist []string
 
@@ -107,8 +105,6 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			os.Chdir(orig_dir)
 		}
 	} else {
 		// getIdList sends file metadata here, getFiles receives IDs and starts downloading

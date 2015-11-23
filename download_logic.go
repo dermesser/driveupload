@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -87,7 +88,6 @@ func getIdListRecursive(cl *drive.Service, basedir, root string, is_id bool, idc
 }
 
 func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error {
-	olddir, _ := os.Getwd()
 	defer wg.Done()
 
 	for file := range idchan {
@@ -97,10 +97,9 @@ func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error 
 
 		if file.directory != "" {
 			os.MkdirAll(file.directory, 0755)
-			os.Chdir(file.directory)
 		}
 
-		f, err := os.OpenFile(file.name, os.O_WRONLY|os.O_CREATE, 0644)
+		f, err := os.OpenFile(filepath.Join(file.directory, file.name), os.O_WRONLY|os.O_CREATE, 0644)
 
 		if err != nil {
 			log.Println(err)
@@ -110,30 +109,39 @@ func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error 
 		for {
 			resp, err := cl.Files.Get(file.id).Download()
 
-			if err != nil {
-				log.Println(err)
+			if resp != nil && (resp.StatusCode == 403 || resp.StatusCode >= 500) {
 				continue
-			} else {
-				var i int64
+			}
 
-				fmt.Printf("...%s (%s)\n", file.name, sizeToString(file.size))
-
-				for {
-					n, err := io.CopyN(f, resp.Body, file.size/100)
-					if err != nil {
-						break
-					}
-					i += n
-				}
-
-				fmt.Printf("Finished %s\n", file.name)
-
-				f.Close()
-				resp.Body.Close()
-
-				os.Chdir(olddir)
+			if resp != nil && resp.StatusCode == 400 {
+				log.Println("Couldn't download", file.name)
 				break
 			}
+
+			if err != nil {
+				log.Println("Couldn't download", file.name)
+				log.Println(err)
+				break
+			}
+
+			var i int64
+
+			fmt.Printf("...%s (%s)\n", file.name, sizeToString(file.size))
+
+			for {
+				n, err := io.CopyN(f, resp.Body, file.size/100)
+				if err != nil {
+					break
+				}
+				i += n
+			}
+
+			fmt.Printf("Finished %s\n", file.name)
+
+			f.Close()
+			resp.Body.Close()
+
+			break
 		}
 
 	}
