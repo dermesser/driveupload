@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
-	"google.golang.org/api/drive/v2"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
+
+	"google.golang.org/api/drive/v2"
 )
 
 type getFile struct {
@@ -34,53 +37,74 @@ func getIdList(cl *drive.Service, basedir string, root string, is_id bool, idcha
 func getIdListRecursive(cl *drive.Service, basedir, root string, is_id bool, idchan chan getFile) {
 
 	if !is_id {
-		q := "title = '" + root + "'"
+		for {
+			q := "title = '" + root + "'"
 
-		fl, err := cl.Files.List().Q(q).MaxResults(100).Do()
-
-		if err != nil {
-			log.Println(err)
-		}
-
-		for i, f := range fl.Items {
-			if f.MimeType != "application/vnd.google-apps.folder" {
-				if i > 0 {
-					idchan <- getFile{directory: basedir, id: f.Id, name: fmt.Sprintf("%d_%s", i, f.Title), size: f.FileSize}
-				} else {
-					idchan <- getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize}
-				}
-			} else {
-				getIdListRecursive(cl, basedir+f.Title+"/", f.Id, true, idchan)
-			}
-		}
-	} else {
-		clist, err := cl.Children.List(root).MaxResults(1000).Do()
-
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		if len(clist.Items) == 0 {
-			f, err := cl.Files.Get(root).Do()
+			fl, err := cl.Files.List().Q(q).MaxResults(100).Do()
 
 			if err != nil {
 				log.Println(err)
-				return
+				continue
 			}
-			idchan <- getFile{id: root, directory: basedir, name: f.Title, size: f.FileSize}
-		} else {
-			for _, child := range clist.Items {
-				f, err := cl.Files.Get(child.Id).Do()
 
-				if err != nil {
-					log.Println(err)
-					return
-				}
+			for i, f := range fl.Items {
 				if f.MimeType != "application/vnd.google-apps.folder" {
-					idchan <- getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize}
+					if i > 0 {
+						idchan <- getFile{directory: basedir, id: f.Id, name: fmt.Sprintf("%d_%s", i, f.Title), size: f.FileSize}
+					} else {
+						idchan <- getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize}
+					}
 				} else {
 					getIdListRecursive(cl, basedir+f.Title+"/", f.Id, true, idchan)
+				}
+			}
+			break
+		}
+	} else {
+		nextPageToken := ""
+		// loop while results are coming (continuing using a continuation token)
+		for {
+			clist, err := cl.Children.List(root).MaxResults(1000).PageToken(nextPageToken).Do()
+
+			if err != nil {
+				log.Println(err)
+				time.Sleep(250 * time.Millisecond)
+				continue
+			}
+
+			nextPageToken = clist.NextPageToken
+			fmt.Println(nextPageToken)
+
+			if len(clist.Items) == 0 {
+				for {
+					f, err := cl.Files.Get(root).Do()
+
+					if err != nil {
+						log.Println(err)
+						time.Sleep(250 * time.Millisecond)
+						continue
+					}
+					idchan <- getFile{id: root, directory: basedir, name: f.Title, size: f.FileSize}
+					break
+				}
+				break
+			} else {
+				for _, child := range clist.Items {
+					for {
+						f, err := cl.Files.Get(child.Id).Do()
+
+						if err != nil {
+							log.Println(err)
+							time.Sleep(250 * time.Millisecond)
+							continue
+						}
+						if f.MimeType != "application/vnd.google-apps.folder" {
+							idchan <- getFile{directory: basedir, id: f.Id, name: f.Title, size: f.FileSize}
+						} else {
+							getIdListRecursive(cl, basedir+f.Title+"/", f.Id, true, idchan)
+						}
+						break
+					}
 				}
 			}
 		}
@@ -107,13 +131,17 @@ func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error 
 		}
 
 		for {
+			fmt.Printf("...%s (%s)\n", file.name, sizeToString(file.size))
+
 			resp, err := cl.Files.Get(file.id).Download()
 
-			if resp != nil && (resp.StatusCode == 403 || resp.StatusCode >= 500) {
+			if err != nil && (strings.Contains(err.Error(), "403") || strings.Contains(err.Error(), "500")) {
+				fmt.Println("Retrying", file.name)
+				time.Sleep(250 * time.Millisecond)
 				continue
 			}
 
-			if resp != nil && resp.StatusCode == 400 {
+			if err != nil && (strings.Contains(err.Error(), "400") || strings.Contains(err.Error(), "404")) {
 				log.Println("Couldn't download", file.name)
 				break
 			}
@@ -125,8 +153,6 @@ func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error 
 			}
 
 			var i int64
-
-			fmt.Printf("...%s (%s)\n", file.name, sizeToString(file.size))
 
 			for {
 				n, err := io.CopyN(f, resp.Body, file.size/100)
