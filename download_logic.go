@@ -72,6 +72,10 @@ func getIdListRecursive(cl *drive.Service, basedir, root string, is_id bool, idc
 				continue
 			}
 
+			if clist.NextPageToken == "" {
+			    break
+			}
+
 			nextPageToken = clist.NextPageToken
 			fmt.Println(nextPageToken)
 
