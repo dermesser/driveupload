@@ -123,6 +123,11 @@ func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error 
 			os.MkdirAll(file.directory, 0755)
 		}
 
+		if _, err := os.Stat(filepath.Join(file.directory, file.name)); err == nil {
+		    fmt.Println("Skipped existing file", filepath.Join(file.directory, file.name))
+		    continue
+		}
+
 		f, err := os.OpenFile(filepath.Join(file.directory, file.name), os.O_WRONLY|os.O_CREATE, 0644)
 
 		if err != nil {
