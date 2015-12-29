@@ -72,12 +72,7 @@ func getIdListRecursive(cl *drive.Service, basedir, root string, is_id bool, idc
 				continue
 			}
 
-			if clist.NextPageToken == "" {
-			    break
-			}
-
 			nextPageToken = clist.NextPageToken
-			fmt.Println(nextPageToken)
 
 			if len(clist.Items) == 0 {
 				for {
@@ -111,6 +106,10 @@ func getIdListRecursive(cl *drive.Service, basedir, root string, is_id bool, idc
 					}
 				}
 			}
+
+			if clist.NextPageToken == "" {
+				break
+			}
 		}
 	}
 }
@@ -127,9 +126,17 @@ func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error 
 			os.MkdirAll(file.directory, 0755)
 		}
 
-		if _, err := os.Stat(filepath.Join(file.directory, file.name)); err == nil {
-		    fmt.Println("Skipped existing file", filepath.Join(file.directory, file.name))
-		    continue
+		if FLAG_rename {
+			if _, err := os.Stat(filepath.Join(file.directory, file.name)); err == nil {
+				oldname := file.name
+				file.name = file.id[len(file.id)-4:len(file.id)] + "_" + file.name
+				fmt.Println("Renamed", oldname, "=>", file.name)
+			}
+		} else {
+			if _, err := os.Stat(filepath.Join(file.directory, file.name)); err == nil {
+				fmt.Println("Skipped existing file", filepath.Join(file.directory, file.name))
+				continue
+			}
 		}
 
 		f, err := os.OpenFile(filepath.Join(file.directory, file.name), os.O_WRONLY|os.O_CREATE, 0644)
@@ -157,7 +164,7 @@ func getFiles(cl *drive.Service, idchan chan getFile, wg *sync.WaitGroup) error 
 
 			if err != nil {
 				log.Println("Couldn't download", file.name)
-				log.Println(err)
+				log.Println(err.Error())
 				break
 			}
 

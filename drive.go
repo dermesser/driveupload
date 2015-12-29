@@ -11,7 +11,7 @@ import (
 )
 
 var FLAG_folder_id string
-var FLAG_get bool
+var FLAG_get, FLAG_rename bool
 var FLAG_par int
 
 var DOWNLOAD_FINISHED bool
@@ -77,6 +77,7 @@ func getFileList(local_folder string) []string {
 func registerFlags() {
 	flag.StringVar(&FLAG_folder_id, "folder", "root", "A folder ID (can be taken from the Drive Web URL) of the folder to put files in")
 	flag.BoolVar(&FLAG_get, "get", false, "Download files. Either the folder given by -folder or the file or folder given as name")
+	flag.BoolVar(&FLAG_rename, "rename", true, "Rename files with the same name. Set to 'false' to continue interrupted downloads without downloading everything again. Otherwise, duplicate files are renamed.")
 	flag.IntVar(&FLAG_par, "par", 4, "How many files to download in parallel")
 }
 
